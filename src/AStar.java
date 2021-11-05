@@ -23,6 +23,7 @@ public class AStar {
         });
         closed = grid.clone();
         open.add(new Node(head[0],head[1]));
+        closed[apple[0]][apple[1]]=0;
         closed[head[0]][head[1]]=0;
 
         while(open.size()!=0){
