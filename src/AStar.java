@@ -9,7 +9,7 @@ public class AStar {
     public AStar(){
     }
 
-    public int pathfinder(int[][] grid,int[] head, int[] apple){
+    public int pathfinder(int[][] grid,int[] head, int[] apple, boolean tail){
         open = new PriorityQueue<Node>(30,new Comparator<Node>() {
             @Override
             public int compare(Node o1, Node o2) {
@@ -23,7 +23,10 @@ public class AStar {
         });
         closed = grid.clone();
         open.add(new Node(head[0],head[1]));
-        closed[apple[0]][apple[1]]=0;
+        if (tail) {
+            closed[apple[0]][apple[1]]=0;
+        }
+        
         closed[head[0]][head[1]]=0;
 
         while(open.size()!=0){
@@ -34,7 +37,7 @@ public class AStar {
             if(!isTraversible(x, y)){//if the current node has already been checked or is a snake tail, move to the next node in the queue
                 continue;
             }
-            closed[x][y]=1;
+            closed[x][y]=2;
             if(apple[0]==x && apple[1]==y){ //if the current node is the destination
                 while(current.parent.x!=head[0] || current.parent.y!=head[1]){
                     

@@ -2,10 +2,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Random;
 import za.ac.wits.snake.DevelopmentAgent;
 
 public class MyAgent extends DevelopmentAgent {
@@ -23,7 +21,8 @@ public class MyAgent extends DevelopmentAgent {
             int nSnakes = Integer.parseInt(temp[0]);
             int[][] grid;
             boolean invis;
-            
+            int[] turning = new int[2];//[0,x] for not turning, [1,0] for turning left next, [1,1] for turning right next
+
             while (true) {
                 // final long startTime = System.currentTimeMillis();
                 AStar finder = new AStar();
@@ -31,6 +30,7 @@ public class MyAgent extends DevelopmentAgent {
                 grid = new int[50][50];
                 int[] head =new int[2];
                 int[] tail = new int[2];
+                int[] neck = new int[2];
                 int snakeLength=0;
                 String line = br.readLine();
                 if (line.contains("Game Over")) {
@@ -48,6 +48,7 @@ public class MyAgent extends DevelopmentAgent {
                         int[][] coo = getCoords(snakeLine);
                         head = coo[0];
                         tail = coo[coo.length-1];
+                        neck = coo[1];
                         snakeLength = Integer.parseInt(snakeLine.split(" ")[1]);
                         //if (snakeLine.charAt(0)=='i') {System.out.println("log my snake is invis with head t getCoords "+ head[0]+","+head[1]);
                         //System.out.println("log Given coords "+snakeLine);}
@@ -62,7 +63,7 @@ public class MyAgent extends DevelopmentAgent {
                 }
                 //finished reading, calculate move;
                 int[] apple = apples[getClosestApple(apples, head)];
-                int move = decisionMaker(finder, grid, invis, enemyHeads, head, tail, snakeLength, apple);
+                int move = decisionMaker(finder, grid, invis, enemyHeads, head, tail, snakeLength, apple,neck,turning);
                 
                 // for (int[] i : enemyHeads) {
                 //     System.out.println("log "+Arrays.toString(i));
@@ -149,40 +150,86 @@ public class MyAgent extends DevelopmentAgent {
             }
         }
     }
-
+    public static int getDirection(int[] head, int[]neck){
+        int directionVals = 2*Integer.signum(head[0]-neck[0]) + (Integer.signum(head[1]-neck[1])); //-1 =up 1=down 2=right -2=left
+        return directionVals;
+    }
     
-    public static int decisionMaker(AStar finder, int[][] grid, boolean invis, ArrayList<int[]> enemyHeads, int[] head, int[] tail,int length, int[] apple){
+    public static int decisionMaker(AStar finder, int[][] grid, boolean invis, ArrayList<int[]> enemyHeads, int[] head, int[] tail,int length, int[] apple,int[] neck,int[] turning){
         int move =5;
         drawBoundaries(grid,enemyHeads);
-        if (length<30) {
-            if (invis) {
-                move = finder.pathfinder(grid, head, tail);
-                //System.out.println("log invis snake: chasing tail");
-            }
-            else {
-                move = finder.pathfinder(grid, head, apple);
-                if (move==5) {
-                    move = finder.pathfinder(grid, head, tail);
-                    //System.out.println("log chasing tail");
-                }
-            }
-        }
-        else{
-            double headToGoal = manhattanDistance(head[0], head[1], apple[0], apple[1]);
-            boolean closest = true;
-            for (int[] i : enemyHeads) {
-                double enemyToGoal = manhattanDistance(i[0], i[1], apple[0], apple[1]);
-                if (headToGoal>enemyToGoal) {
-                    closest = false;
-                }
-            }
-            if (closest) {
-                move = finder.pathfinder(grid, head, apple);
+        if (turning[0]==1) {
+            turning[0]=0;
+            if (turning[1]==0) {
+                return 4;
             }
             else{
-                move = finder.pathfinder(grid, head, tail);
+                return 6;
             }
         }
+
+        if (invis) {
+            move = finder.pathfinder(grid, head, tail, true);
+            //System.out.println("log invis snake: chasing tail");
+        }
+        else {
+            move = finder.pathfinder(grid, head, apple, false);
+            if (move==5) {
+                move = finder.pathfinder(grid, head, tail, true);
+                //System.out.println("log chasing tail");
+            }
+        }
+        if (move==5) {//check if going to crash
+            int[] infront = new int[2];//next position if keep going forward
+            int[] right = new int[2];//position of block right of head
+            int[] left = new int[2];//position of block left of head
+            int direction = getDirection(head, neck);
+            if (direction%2==0) {//if the snake is horizontal
+                infront[0] = head[0] + direction/2;
+                infront[1] = head[1];
+                if (direction==2) {//if snake travelling east
+                    right[0]=head[0];
+                    right[1]=head[1]+1;
+                    left[0]=head[0];
+                    left[1]=head[1]-1;
+                }
+                else{//if snake travelling west
+                    right[0]=head[0];
+                    right[1]=head[1]-1;
+                    left[0]=head[0];
+                    left[1]=head[1]+1;
+                }
+            }
+            else{//snake is vertical
+                infront[1] = head[1] + direction;
+                infront[0] = head[0];
+                if (direction==1) {//if snake travelling south
+                    right[0]=head[0]-1;
+                    right[1]=head[1];
+                    left[0]=head[0]+1;
+                    left[1]=head[1];
+                }
+                else{//if snake travelling north
+                    right[0]=head[0]+1;
+                    right[1]=head[1];
+                    left[0]=head[0]-1;
+                    left[1]=head[1];
+                }
+            }
+            if (!(isValid(infront[0], infront[1]))||grid[infront[0]][infront[1]]==1) {//if going to crash
+                if ((isValid(left[0], left[1]))&&grid[left[0]][left[1]]!=0) { //if open on left turn left
+                    move = 4;
+                    turning[0]=1; //must turn on next state
+                    turning[1]=0; //next turn must be lefts
+                }
+                else if ((isValid(right[0], right[1]))&&grid[right[0]][right[1]]!=0){//if right is open turn right
+                    move = 6; 
+                    turning[0]=1;
+                    turning[1]=1;
+                }
+            }
+        }
+        
         return move;
     }
 
@@ -216,18 +263,18 @@ public class MyAgent extends DevelopmentAgent {
         return Math.abs(x1-x2)+Math.abs(y1-y2);
     }
 
-    public static void printGrid(int[][] grid) throws IOException{
-        Path fileName = Path.of("log.txt");
-        String ans = "";
-        for (int i = 0; i < grid.length; i++) {
-            for (int j = 0; j < grid[0].length; j++) {
-                if (j==0) {
-                    ans+=i+1+"\t";
-                }
-                ans+=grid[j][i]+" ";
-            }
-            ans+="\n";
-        }
-        Files.writeString(fileName,ans);
-    }
+    // public static void printGrid(int[][] grid) throws IOException{
+    //     Path fileName = Path.of("log.txt");
+    //     String ans = "";
+    //     for (int i = 0; i < grid.length; i++) {
+    //         for (int j = 0; j < grid[0].length; j++) {
+    //             if (j==0) {
+    //                 ans+=i+1+"\t";
+    //             }
+    //             ans+=grid[j][i]+" ";
+    //         }
+    //         ans+="\n";
+    //     }
+    //     Files.writeString(fileName,ans);
+    // }
 }
